@@ -10,7 +10,10 @@ import { readFileSync, writeFileSync, readdirSync, mkdirSync, unlinkSync } from 
 import { resolve, join } from 'node:path';
 
 export const SNAPSHOT_DIR = resolve(import.meta.dirname, '../data/snapshots');
-export const RETENTION = 90; // dosya sayısı; 2 günde bir koşuda ~6 ay geçmiş
+// Tam snapshot yalnız ivme kıyası için gerekiyor (pencere 2 gün), uzun trend
+// data/history/ içinde kompakt tutuluyor. Kapsam 11 kata çıkınca her dosya
+// megabaytlara çıktığı için saklama kısaldı: 12 dosya ~ 24 gün.
+export const RETENTION = 12;
 
 export function exportSnapshot(db, snapshotId) {
   const snap = db.prepare('SELECT * FROM snapshots WHERE id = ?').get(snapshotId);
@@ -35,8 +38,10 @@ export function exportSnapshot(db, snapshotId) {
   const payload = { version: 1, takenAt: snap.taken_at, note: snap.note, apps, ranks, metrics };
   mkdirSync(SNAPSHOT_DIR, { recursive: true });
   const file = join(SNAPSHOT_DIR, `${snap.taken_at.slice(0, 19).replace(/[:T]/g, '-')}.json.gz`);
-  writeFileSync(file, gzipSync(Buffer.from(JSON.stringify(payload)), { level: 9 }));
-  return { file, apps: apps.length, ranks: ranks.length, metrics: metrics.length };
+  const buf = gzipSync(Buffer.from(JSON.stringify(payload)), { level: 9 });
+  writeFileSync(file, buf);
+  return { file, apps: apps.length, ranks: ranks.length, metrics: metrics.length,
+           sizeKb: Math.round(buf.length / 1024) };
 }
 
 function listFiles() {

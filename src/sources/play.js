@@ -1,15 +1,15 @@
 import gplayPkg from 'google-play-scraper';
-import { PLAY_COLLECTIONS, CHART_DEPTH, PLAY_DETAIL_CONCURRENCY } from '../config.js';
+import { PLAY_COLLECTIONS, CHART_DEPTH, PLAY_DETAIL_CONCURRENCY, PLAY_DETAIL_DELAY_MS } from '../config.js';
 
 const gplay = gplayPkg.default ?? gplayPkg;
 
 /** Bir ülke + chart için sıralı oyun listesi (Play GAME kategorisi). */
-export async function fetchPlayChart(country, chart) {
+export async function fetchPlayChart(country, chart, category = 'GAME') {
   const collection = PLAY_COLLECTIONS[chart];
   if (!collection) return [];
   const res = await gplay.list({
     collection,
-    category: 'GAME',
+    category,
     num: CHART_DEPTH,
     country,
     lang: 'en',
@@ -58,7 +58,7 @@ export async function enrichPlayApps(appIds, country = 'us') {
       } catch {
         // tek uygulama düşerse radar durmaz
       }
-      await new Promise((r) => setTimeout(r, 120));
+      await new Promise((r) => setTimeout(r, PLAY_DETAIL_DELAY_MS));
     }
   });
   await Promise.all(workers);
