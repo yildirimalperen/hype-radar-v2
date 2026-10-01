@@ -5,11 +5,10 @@ import {
 
 const gplay = gplayPkg.default ?? gplayPkg;
 
-// Throttle altında tek istek dakikalarca asılı kalabiliyor; süre sınırı ancak
-// istekler de sınırlıysa işe yarar.
-const withTimeout = (p, ms = 20_000) => Promise.race([
-  p, new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms).unref()),
-]);
+// Throttle altında tek istek dakikalarca asılı kalabiliyor, got da 429'da
+// Retry-After kadar bekleyip tekrar deniyor; süre sınırı ancak istekler de
+// sınırlıysa işe yarar. Düşen oyun sıra tabanlı skorlanır, tekrar denemeye değmez.
+const DETAIL_REQUEST = { timeout: 20_000, retry: 0 };
 
 /** Bir ülke + chart için sıralı oyun listesi (Play GAME kategorisi). */
 export async function fetchPlayChart(country, chart, category = 'GAME') {
@@ -47,7 +46,7 @@ export async function enrichPlayApps(appIds, country = 'us', deadlineMs = PLAY_D
     while (queue.length && Date.now() < stopAt) {
       const appId = queue.shift();
       try {
-        const d = await withTimeout(gplay.app({ appId, country, lang: 'en' }));
+        const d = await gplay.app({ appId, country, lang: 'en', requestOptions: DETAIL_REQUEST });
         out.set(appId, {
           storeId: appId,
           title: d.title,
