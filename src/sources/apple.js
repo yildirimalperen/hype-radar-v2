@@ -1,4 +1,6 @@
-import { APPLE_FEEDS, APPLE_GAMES_GENRE, CHART_DEPTH, APPLE_LOOKUP_BATCH } from '../config.js';
+import {
+  APPLE_FEEDS, APPLE_GAMES_GENRE, CHART_DEPTH, APPLE_LOOKUP_BATCH, APPLE_LOOKUP_DEADLINE_MS,
+} from '../config.js';
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36';
 
@@ -6,7 +8,11 @@ async function getJson(url, tries = 3) {
   let lastErr;
   for (let i = 0; i < tries; i++) {
     try {
-      const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
+      // Asılı kalan tek istek süre sınırını boşa çıkarmasın.
+      const res = await fetch(url, {
+        headers: { 'User-Agent': UA, Accept: 'application/json' },
+        signal: AbortSignal.timeout(20_000),
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
     } catch (err) {
@@ -44,9 +50,10 @@ export async function fetchAppleChart(country, chart, genre = APPLE_GAMES_GENRE)
  * Not: Apple IAP listesini ücretsiz uçtan vermiyor; iap alanı burada hep null,
  * eşleşen Android sürümünden türetiliyor (bkz. link.js).
  */
-export async function enrichAppleApps(storeIds, country = 'us', fallbacks = []) {
+export async function enrichAppleApps(storeIds, country = 'us', fallbacks = [], deadlineMs = APPLE_LOOKUP_DEADLINE_MS) {
   const out = new Map();
-  await lookupInto(out, storeIds, country);
+  const stopAt = Date.now() + deadlineMs;
+  await lookupInto(out, storeIds, country, stopAt);
 
   // Bir uygulama yalnız kendi vitrininde bulunabiliyor: Japonya veya Kore
   // chart'ındaki oyun ABD mağazasında yoksa lookup boş döner. Kapsam 30 ülkeye
@@ -54,14 +61,14 @@ export async function enrichAppleApps(storeIds, country = 'us', fallbacks = []) 
   // diğer vitrinlerde arıyoruz.
   for (const alt of fallbacks) {
     const missing = storeIds.filter((id) => !out.has(String(id)));
-    if (!missing.length) break;
-    await lookupInto(out, missing, alt);
+    if (!missing.length || Date.now() >= stopAt) break;
+    await lookupInto(out, missing, alt, stopAt);
   }
   return out;
 }
 
-async function lookupInto(out, storeIds, country) {
-  for (let i = 0; i < storeIds.length; i += APPLE_LOOKUP_BATCH) {
+async function lookupInto(out, storeIds, country, stopAt = Infinity) {
+  for (let i = 0; i < storeIds.length && Date.now() < stopAt; i += APPLE_LOOKUP_BATCH) {
     const batch = storeIds.slice(i, i + APPLE_LOOKUP_BATCH);
     const url = `https://itunes.apple.com/lookup?id=${batch.join(',')}&country=${country}&entity=software`;
     let data;

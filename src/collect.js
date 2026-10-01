@@ -108,7 +108,8 @@ export async function collect({ note = null } = {}) {
     enrichAppleApps([...iosIds], 'us', fallbackStores),
     enrichPlayApps(androidToFetch),
   ]);
-  log(`detay: iOS ${ios.size}/${iosIds.size}, Android ${android.size}/${androidToFetch.length}`);
+  log(`detay: iOS ${ios.size}/${iosIds.size}, Android ${android.size}/${androidToFetch.length}` +
+      (android.skipped ? ` (süre doldu, ${android.skipped} Android detayı atlandı)` : ''));
 
   // Apple'ın "newfreeapplications" beslemesi genre filtresini yok sayıyor:
   // oyun olmayan uygulamalar chart'a sızıyor. Lookup türleriyle eliyoruz.
